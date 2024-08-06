@@ -1,0 +1,12 @@
+[centos]
+server01 
+
+[ubuntu]
+server02 
+
+[database]
+server02
+
+[linux:children]
+centos
+ubuntu
