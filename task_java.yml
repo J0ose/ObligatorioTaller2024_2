@@ -1,0 +1,11 @@
+---
+- hosts: centos
+  become: true
+  user: sysadmin
+
+  tasks:
+  - name: Instalación de Java Open JDK
+    ansible.builtin.dnf:
+      name: java-11-openjdk-headless
+      state: present
+      update_cache: yes
