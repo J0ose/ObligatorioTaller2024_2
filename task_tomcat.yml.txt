@@ -1,0 +1,109 @@
+---
+- name: Instalar y configurar Apache Tomcat
+  hosts: centos
+  become: yes
+  user: sysadmin
+
+  tasks:
+    - name: Instalar dependencias necesarias
+      ansible.builtin.dnf:
+        name:
+          - java-11-openjdk-headless
+          - wget
+          - gzip 
+          - tar 
+        state: present
+        update_cache: yes
+
+    - name: Crear el usuario y grupo para Tomcat
+      user:
+        name: tomcat
+        system: yes
+        home: /opt/tomcat
+        shell: /bin/false
+
+    - name: Descargar Apache Tomcat
+      get_url:
+        url: https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.93/bin/apache-tomcat-9.0.93.tar.gz
+        dest: /tmp/apache-tomcat-9.0.93.tar.gz
+
+    - name: Extraer Tomcat
+      unarchive:
+        src: /tmp/apache-tomcat-9.0.93.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+          # extra_opts:
+          #          - --strip-components=1
+
+    - name: Cambiar el propietario de los archivos de Tomcat
+      file:
+        path: /opt/tomcat
+        state: directory
+        owner: tomcat
+        group: tomcat
+        recurse: yes
+
+    - name: Crear directorio config 
+      ansible.builtin.file: 
+        path: /opt/config/ 
+        state: directory 
+        mode: '0755' 
+        owner: tomcat 
+        group: tomcat 
+
+    - name: copiar app.properties 
+      ansible.builtin.copy: 
+        src: ./Files/app.properties 
+        dest: /opt/config/app.properties 
+
+    - name: Crear archivo de servicio para Tomcat
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.target
+
+          [Service]
+          Type=forking
+          
+          User=tomcat
+          Group=tomcat
+          
+          Environment="CATALINA_PID=/opt/tomcat/temp/tomcat.pid"
+          Environment="CATALINA_HOME=/opt/tomcat"
+          Environment="CATALINA_BASE=/opt/tomcat"
+          Environment="CATALINA_OPTS=-Xms512M -Xmx1024M"
+          Environment="JAVA_OPTS=-Djava.security.egd=file:/dev/./urandom"
+          
+          ExecStart=/opt/tomcat/bin/startup.sh
+          ExecStop=/opt/tomcat/bin/shutdown.sh
+          
+          [Install]
+          WantedBy=multi-user.target
+
+
+    - name: Recargar el daemon de SystemD
+      systemd:
+        daemon_reload: yes
+
+    - name: Iniciar y habilitar el servicio Tomcat
+      ansible.builtin.systemd_service:
+        systemd:
+        name: tomcat
+        state: started
+        enabled: yes
+
+    - name: Abrir puerto 8080 en el firewall (ufw)
+      firewalld:
+        port: 8080/tcp
+        permanent: yes
+        state: enabled
+
+    - name: Copiar archivo todo.war 
+      ansible.builtin.copy: 
+       src: ./Files/todo.war 
+       dest: /opt/tomcat/apache-tomcat-9.0.93/webapps/todo.war 
+       owner: tomcat 
+       group: tomcat 
+       mode: '0644' 
